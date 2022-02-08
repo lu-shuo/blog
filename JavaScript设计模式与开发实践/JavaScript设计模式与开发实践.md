@@ -25,8 +25,8 @@ Peter Norvig 曾说，设计模式是对语言不足的补充，如果要使用�
 在开发中，我们应该尽量减少使用全局变量，如果非要使用，可以用下面方法将命名污染概率降到最低：
 
 1. 使用命名空间
-
-	适当使用命名空间并不会杜绝全局变量，但是可以减少全局变量的数量，并且可以减少内部变量与全局打交道的机会：
+   
+    适当使用命名空间并不会杜绝全局变量，但是可以减少全局变量的数量，并且可以减少内部变量与全局打交道的机会：
 
 ```javascript
 const namespace1 = {
@@ -35,7 +35,9 @@ const namespace1 = {
 }
 ```
 
-	动态创建命名空间
+```
+动态创建命名空间
+```
 
 ```javascript
 const myApp = {}
@@ -407,7 +409,6 @@ const createProxyFactory = function (fn) {
 迭代器又分为内部迭代器和外部迭代器：
 
 - 内部迭代器在调用的时候非常方便，外界不用关心迭代器内部的实现，跟迭代器的交互也仅仅是一次初始调用，但这也刚好是内部迭代器的缺点。
-
 - 外部迭代器必须显式地请求迭代下一个元素。这增加了一些调用的复杂度，但相对也增强了迭代器的灵活性，我们可以手工控制迭代的过程或者顺序。
   
   实现一个外部迭代器：
@@ -950,18 +951,333 @@ Event.create('namespace1').trigger('click', 1);
 
 ### 实例
 
-<br/>
+#### 菜单实例
 
-## 组合模式
+在编写页面菜单时，通常有多个按钮，把按钮的绘制和按钮的功能分配给不同的程序员编写是常见的分工。
 
-TODO
+对于绘制按钮的程序员来说，他完全不知道某个按钮未来将用来做什么，可能用来刷新菜单界面，也可能用来增加一些子菜单，他只知道点击这个按钮会发生某些事情。那么当完成这个按钮的绘制之后，应该如何给它绑定 onclick 事件呢？
 
-## 模板方法模式
+这时我们可以利用命令模式来解开按钮和具体执行对象之间的耦合。通过 command 对象的帮助，将来我们可以轻易地改变这种关联，因此也可以在将来再次改变按钮的行为。
 
-在 JavaScript 开发中用到继承的场景其实并不是很多，很多时候我们都喜欢用 mix-in 的方式给对象扩展属性。但这不代表继承在 JavaScript 里没有用武之地，虽然没有真正的类和继承机制，但我们可以通过原型 prototype 来变相地实现继承。
-不过本章并非要讨论继承，而是讨论一种基于继承的设计模式——模板方法（Template Method）模式。
+首先我们获取页面中的按钮：
 
-TODO
+```javascript
+const button1 = document.getElementById('button1');
+const button2 = document.getElementById('button2');
+const button3 = document.getElementById('button3');
+```
+
+接下来定义 setCommand 函数，setCommand 函数负责往按钮上面安装命令。可以肯定的是，点击按钮会执行某个 command 命令，执行命令的动作被约定为调用 command 对象的 execute()方法。虽然还不知道这些命令究竟代表什么操作，但负责绘制按钮的程序员不关心这些事情，他只需要预留好安装命令的接口，command 对象自然知道如何和正确的对象沟通：
+
+```javascript
+function setCommand(button, command) {
+  button.onclick = function () {
+    command.execute();
+  }
+}
+```
+
+负责编写功能的同事也交上了他们的成果，实现菜单刷新，增加或者删除菜单的功能代码：
+
+```javascript
+const MenuBar = {
+  refresh: function () {
+    console.log('刷新菜单目录');
+  }
+};
+const SubMenu = {
+  add: function () {
+    console.log('增加子菜单');
+  },
+  del: function () {
+    console.log('删除子菜单');
+  }
+};
+```
+
+在让 button 变得有用起来之前，我们要先把这些行为都封装在命令类中：
+
+```javascript
+const RefreshMenuBarCommand = function (receiver) {
+  this.receiver = receiver;
+};
+RefreshMenuBarCommand.prototype.execute = function () {
+  this.receiver.refresh();
+};
+const AddSubMenuCommand = function (receiver) {
+  this.receiver = receiver;
+};
+AddSubMenuCommand.prototype.execute = function () {
+  this.receiver.add();
+};
+const DelSubMenuCommand = function (receiver) {
+  this.receiver = receiver;
+};
+DelSubMenuCommand.prototype.execute = function () {
+  console.log('删除子菜单');
+};
+```
+
+最后就是把命令接收者传入到 command 对象中，并且把 command 对象安装到 button 上面:
+
+```javascript
+const refreshMenuBarCommand = new RefreshMenuBarCommand( MenuBar ); 
+const addSubMenuCommand = new AddSubMenuCommand( SubMenu ); 
+const delSubMenuCommand = new DelSubMenuCommand( SubMenu );
+
+setCommand( button1, refreshMenuBarCommand ); 
+setCommand( button2, addSubMenuCommand ); 
+setCommand( button3, delSubMenuCommand );
+```
+
+以上只是一个简单的例子，但可以体现出我们是如何把命令发送者和命令接收者分离开的。
+
+### JavaScript中的命令模式
+
+看了上面的例子，我们也许会感到奇怪，这无非就是个对象的某个方法重新起了个execute的名字，并且还大费周章的引入command对象和receiver，即使不用模式，我们也可以用下面的方式实现：
+
+```javascript
+const bindClick = function (button, func) {
+  button.onclick = func;
+};
+const MenuBar = {
+  refresh: function () {
+    console.log('刷新菜单界面');
+  }
+};
+const SubMenu = {
+  add: function () {
+    console.log('增加子菜单');
+  },
+  del: function () {
+    console.log('删除子菜单');
+  }
+};
+bindClick(button1, MenuBar.refresh);
+bindClick(button2, SubMenu.add);
+bindClick(button3, SubMenu.del);
+```
+
+确实是这样，上一节中的例子是模拟传统面向对象语言的命令模式实现。命令模式将过程式的请求调用封装在 command 对象的 execute 方法里，通过封装方法调用，我们可以把运算块包装成形。command 对象可以被四处传递，所以在调用命令的时候，客户（Client）不需要关心事情是如何进行的。
+
+**命令模式的由来，其实是回调（callback）函数的一个面向对象的替代品。**
+
+JavaScript 作为将**函数作为一等对象**的语言，跟策略模式一样，命令模式也早已融入到了JavaScript 语言之中。运算块不一定要封装在 command.execute 方法中，也可以封装在普通函数中。函数作为一等对象，本身就可以被四处传递。即使我们依然需要请求“接收者”，那也未必使用
+面向对象的方式，闭包可以完成同样的功能。
+
+闭包实现中，命令接收者被封闭在闭包产生的环境中，只需执行回调函数即可：
+
+```javascript
+const RefreshMenuBarCommand = function (receiver) {
+  return {
+    execute: function () {
+      receiver.refresh();
+    }
+  }
+};
+
+const AddSubMenuCommand = function (receiver) {
+  return {
+    execute: function () {
+      receiver.add();
+    }
+  }
+};
+
+const DelSubMenuCommand = function (receiver) {
+  return {
+    execute: function () {
+      receiver.del();
+    }
+  }
+};
+
+const refreshMenuBarCommand = RefreshMenuBarCommand(MenuBar);
+const addSubMenuCommand = AddSubMenuCommand(SubMenu); 
+const delSubMenuCommand = DelSubMenuCommand(SubMenu);
+
+setCommand(button1, refreshMenuBarCommand);
+setCommand(button2, addSubMenuCommand);
+setCommand(button3, delSubMenuCommand);
+```
+
+### 撤销命令
+
+命令模式的作用不仅是封装运算块，而且可以很方便地给命令对象增加撤销操作。就像订餐时客人可以通过电话来取消订单一样。下面来看撤销命令的例子。
+
+现在假设一个例子是通过点击按钮让小球运动到指定位置，我们要增加一个按钮实现撤销功能，即让小球回到旧的位置：
+
+```javascript
+const moveBtn = ...
+const undoBtn = ...
+
+function Animate() {
+  // ...动画实现类
+}
+
+function MoveCommand(receiver, pos) {
+  this.receiver = receiver
+  this.pos = pos
+  this.oldPos = null
+}
+
+MoveCommand.prototype.execute = function () {
+  this.receiver.start('left', this.pos, 1000, 'strongEaseOut');
+  this.oldPos = this.receiver.dom.getBoundingClientRect()[this.receiver.propertyName]
+}
+
+MoveCommand.prototype.undo = function () {
+  this.receiver.start('left', this.oldPos, 1000, 'strongEaseOut');
+}
+
+let moveCommand
+
+moveBtn.onclick = function () {
+  const animate = new Animate(ball)
+  moveCommand = new MoveCommand(animate, pos.value)
+  moveCommand.execute()
+}
+
+undoBtn.onclick = function () {
+  moveCommand.undo()
+}
+```
+
+现在通过命令模式轻松地实现了撤销功能。如果用普通的方法调用来实现，也许需要每次都手工记录小球的运动轨迹，才能让它还原到之前的位置。而命令模式中小球的原始位置在小球开始移动前已经作为 command 对象的属性被保存起来，所以只需要再提供一个 undo 方法，并且在 undo方法中让小球回到刚刚记录的原始位置就可以了。
+撤销是命令模式里一个非常有用的功能，试想一下开发一个围棋程序的时候，我们把每一步棋子的变化都封装成命令，则可以轻而易举地实现悔棋功能。同样，撤销命令还可以用于实现文本编辑器的 Ctrl+Z 功能。
+
+### 撤销和重做
+
+在某些情况下无法顺利地利用 undo 操作让对象回到 execute 之前的状态。比如在一个Canvas 画图的程序中，画布上有一些点，我们在这些点之间画了 N 条曲线把这些点相互连接起来，当然这是用命令模式来实现的。但是我们却很难为这里的命令对象定义一个擦除某条曲线的
+undo 操作，因为在 Canvas 画图中，擦除一条线相对不容易实现。
+这时候最好的办法是先清除画布，然后把刚才执行过的命令全部重新执行一遍，这一点同样可以利用一个历史列表堆栈办到。记录命令日志，然后重复执行它们，这是逆转不可逆命令的一个好办法。
+
+下面是一个小游戏的例子，在游戏中我们可以保存用户的操作，回放的时候将保存的操作再次实现：
+
+```javascript
+const Ryu = {
+  attack: function () {
+    console.log('攻击');
+  },
+  defense: function () {
+    console.log('防御');
+  },
+  jump: function () {
+    console.log('跳跃');
+  },
+  crouch: function () {
+    console.log('蹲下');
+  }
+};
+
+const commands = {
+  "119": "jump", // W 
+  "115": "crouch", // S 
+  "97": "defense", // A 
+  "100": "attack" // D 
+};
+
+const commandStack = [];
+
+const makeCommand = function (receiver, state) {
+  return function () {
+    receiver[state]()
+  }
+}
+
+document.onkeypress = function (e) {
+  const keyCode = e.keyCode,
+    command = makeCommand(Ryu, commands[keyCode])
+
+  if (command) {
+    command()
+    commandStack.push(command)
+  }
+}
+
+replayBtn.onclick = function () {
+  if (commandStack.length) {
+    while (command = commandStack.shift()) { // 从堆栈里依次取出命令并执行
+      command();
+    }
+  }
+}
+```
+
+### 命令队列
+
+在请求较多的情况下，由于命令对象的生命周期几乎是永久的，我们可以将命令对象缓存到队列堆栈中，在前一个命令执行完成之后通知队列执行下一个命令，通知的方式可以选择回调函数或者发布订阅。
+
+### 宏命令
+
+宏命令是一组命令的集合，通过执行宏命令的方式，可以一次执行一批命令。例如现在非常火的智能家居，我们打开门的那一刻，在触发回家模式后，灯光，电视，空调，自动开启，窗帘自动关闭，这一些列的命令就可以包装为一个宏命令。
+
+首先我们先准备好各个命令对象：
+
+```javascript
+const closeDoorCommand = {
+  execute: function () {
+    console.log('关门');
+  }
+};
+const openPcCommand = {
+  execute: function () {
+    console.log('开电脑');
+  }
+};
+const openQQCommand = {
+  execute: function () {
+    console.log('登录 QQ');
+  }
+};
+
+const openTvCommand = {
+  execute: function () {
+    console.log('打开电视');
+  }
+};
+const openSoundCommand = {
+  execute: function () {
+    console.log('打开音响');
+  }
+};
+```
+
+宏命令对象实现：
+
+```javascript
+const MacroCommand = () => {
+  return {
+    commandsList: [],
+    add: function (command) {
+      this.commandsList.push(command)
+    },
+    execute: function () {
+      for (let i = 0, command; command = this.commandsList[i++];) {
+        if (typeof command.execute === 'function') command.execute()
+      }
+    }
+  }
+}
+// 家里的电视和音响是连接在一起的，所以可以用一个宏命令来组合打开电视和打开音响的命令
+const command_tv = MacroCommand()
+
+command_tv.add(openTvCommand)
+command_tv.add(openSoundCommand)
+
+const macroCommand = MacroCommand()
+
+macroCommand.add(closeDoorCommand)
+macroCommand.add(command_tv)
+macroCommand.add(openPcCommand)
+macroCommand.add(openQQCommand)
+
+macroCommand.execute()
+```
+
+### 小结
+
+本章我们学习了命令模式。跟许多其他语言不同，JavaScript 可以用高阶函数非常方便地实现命令模式。命令模式在 JavaScript 语言中是一种隐形的模式。
 
 ## 享元模式
 
@@ -1182,7 +1498,7 @@ startUpload('flash', [
 
 - orderType：表示订单类型（定金用户或者普通购买用户），code 的值为 1 的时候是 500 元定金用户，为 2 的时候是 200 元定金用户，为 3 的时候是普通购买用户。
 - pay：表示用户是否已经支付定金，值为 true 或者 false, 虽然用户已经下过 500 元定金的订单，但如果他一直没有支付定金，现在只能降级进入普通购买模式。
--  stock：表示当前用于普通购买的手机库存数量，已经支付过 500 元或者 200 元定金的用户不受此限制。
+- stock：表示当前用于普通购买的手机库存数量，已经支付过 500 元或者 200 元定金的用户不受此限制。
 
 <br/>
 
@@ -2179,9 +2495,9 @@ const fsm = new StateMachine({
 
 - 状态模式定义了状态与行为之间的关系，并将它们封装在一个类里。通过增加新的状态
 类，很容易增加新的状态和转换。
--  避免 Context 无限膨胀，状态切换的逻辑被分布在状态类中，也去掉了 Context 中原本过多的条件分支。
--  用对象代替字符串来记录当前状态，使得状态的切换更加一目了然。
--  Context 中的请求动作和状态类中封装的行为可以非常容易地独立变化而互不影响。
+- 避免 Context 无限膨胀，状态切换的逻辑被分布在状态类中，也去掉了 Context 中原本过多的条件分支。
+- 用对象代替字符串来记录当前状态，使得状态的切换更加一目了然。
+- Context 中的请求动作和状态类中封装的行为可以非常容易地独立变化而互不影响。
 
 缺点：
 
